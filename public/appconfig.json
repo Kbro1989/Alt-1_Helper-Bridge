@@ -1,0 +1,12 @@
+{
+  "name": "Aegis Oracle (Local)",
+  "appUrl": "http://localhost:8080/",
+  "configUrl": "http://localhost:8080/appconfig.json",
+  "iconUrl": "http://localhost:8080/favicon.svg",
+  "desc": "Aegis Alt1-AI | Premium Autonomous Game Overlay (Development Mode)",
+  "formatversion": 1,
+  "appversion": "1.0.0",
+  "defaultWidth": 420,
+  "defaultHeight": 650,
+  "permissions": ["pixel", "overlay", "gamestate"]
+}

@@ -27,7 +27,7 @@ export class MemoryLimb implements IAegisLimb {
 
   public async pulse(telemetry: TelemetrySnapshot): Promise<LimbOutput | null> {
     // Detect death in chat or telemetry diffs
-    const deathDetected = telemetry.chatLines.some(line => line.toLowerCase().includes('you died'));
+    const deathDetected = telemetry.chatLines.some(line => line.text.toLowerCase().includes('you died'));
 
     if (deathDetected) {
       const deathEntry = {

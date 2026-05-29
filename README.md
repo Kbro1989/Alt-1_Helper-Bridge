@@ -14,7 +14,8 @@ Aegis AI Copilot is an ambient, local-first artificial intelligence assistant de
 
 ### Prerequisites
 - Node.js (v18+)
-- Local instance of [Ollama](https://ollama.ai/) running on port 11434.
+- Local instance of [Ollama](https://ollama.ai/) running on port 11434 (Optional for local-only mode).
+- A [Google Gemini API Key](https://aistudio.google.com/app/apikey) (Optional for live cloud vision mode).
 - [Alt1 Toolkit](https://runeapps.org/alt1) installed.
 
 ### Installation
@@ -27,11 +28,16 @@ Aegis AI Copilot is an ambient, local-first artificial intelligence assistant de
    ```bash
    npm install
    ```
-3. Start the development server:
+3. Set up your environment variables:
+   Create a `.env` file in the root directory and add your Gemini API key:
+   ```env
+   VITE_GEMINI_API_KEY=your_api_key_here
+   ```
+4. Start the development server:
    ```bash
    npm run dev
    ```
-4. Load the app into Alt1 by pointing the Alt1 browser to your localhost port (usually `http://localhost:5173`).
+5. Load the app into Alt1 by pointing the Alt1 browser to your localhost port (usually `http://localhost:5173`).
 
 ## 🛠️ Architecture Overview
 

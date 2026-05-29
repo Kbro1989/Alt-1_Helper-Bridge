@@ -4,7 +4,8 @@
  * POG2 Domain: SENSORY (Sensory Cortex)
  */
 
-import type { IAegisLimb, LimbStatus, LimbOutput, TelemetrySnapshot } from '../limb/Limb';
+import { LimbStatus } from '../limb/Limb';
+import type { IAegisLimb, LimbOutput, TelemetrySnapshot } from '../limb/Limb';
 import { detectGameMode, type GameMode } from '../../core/modeDetector';
 
 export class SensoryLimb implements IAegisLimb {

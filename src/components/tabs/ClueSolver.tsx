@@ -3,6 +3,7 @@ import { Compass, Sliders, Link, RefreshCw, Play, CheckCircle, Info } from 'luci
 
 interface ClueSolverProps {
   playSynthAlarm: (type: 'siren' | 'bell' | 'chime') => void;
+  runVisionClueAnalysis: (snapshot: string) => void;
 }
 
 const isSliderSolved = (grid: number[]): boolean => {
@@ -12,7 +13,21 @@ const isSliderSolved = (grid: number[]): boolean => {
   return grid[15] === 0;
 };
 
-export default function ClueSolver({ playSynthAlarm }: ClueSolverProps) {
+export default function ClueSolver({ playSynthAlarm, runVisionClueAnalysis }: ClueSolverProps) {
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            if (event.target?.result) {
+                runVisionClueAnalysis(event.target.result as string);
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+  };
+
   // Clue Slider Puzzle State
   const [sliderGrid, setSliderGrid] = useState<number[]>([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0]);
   const [sliderScrambleHistory, setSliderScrambleHistory] = useState<number[]>([]);
@@ -163,7 +178,11 @@ export default function ClueSolver({ playSynthAlarm }: ClueSolverProps) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div 
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
+      style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+    >
       {/* Sub-tabs to choose plugin solver mode */}
       <div style={{ display: 'flex', gap: '4px', background: 'hsla(var(--bg-surface-elevated), 0.3)', padding: '4px', borderRadius: '10px', border: '1px solid hsla(var(--border-light))' }}>
         <button 

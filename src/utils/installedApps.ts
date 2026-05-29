@@ -57,7 +57,12 @@ export const installedApps = [
   {
     "name": "Ability Tracker",
     "url": "./",
-    "description": ""
+    "description": "Real-time AI-driven ability cooldown monitoring and DPS analysis using screen vision parsing."
+  },
+  {
+    "name": "Player Profile",
+    "url": "./",
+    "description": "Pick Of Gods player profile tracking for skills, boss kills, and gear status."
   },
   {
     "name": "Farming Timer",

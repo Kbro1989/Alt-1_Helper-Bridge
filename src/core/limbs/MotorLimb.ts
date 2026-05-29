@@ -9,7 +9,6 @@ import type { IAegisLimb, LimbOutput, TelemetrySnapshot } from '../limb/Limb';
 import { Thalamus } from '../Thalamus';
 import { SensoryLimb } from './SensoryLimb';
 import { generateGuidance } from '../../core/guidanceEngine';
-import { renderClickGuide } from '../../utils/clickGuide';
 
 export class MotorLimb implements IAegisLimb {
   public readonly id = 'MOTOR_CORTEX';
@@ -23,9 +22,6 @@ export class MotorLimb implements IAegisLimb {
     const guidance = generateGuidance(mode, telemetry, null);
 
     if (guidance) {
-      // Check for critical threats first (POG2 Priority Matrix)
-      const isCritical = telemetry.target?.hp ? (telemetry.target.hp / 100 < 0.4) : false;
-
       return {
         payload: {
           text: guidance.speak,

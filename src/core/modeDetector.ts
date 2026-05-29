@@ -3,7 +3,7 @@
 // Intelligent Game Mode Inference Engine
 // =============================================================================
 
-import { type ChatLine, type Buff } from '../utils/alt1Bridge';
+import { type TelemetrySnapshot } from './limb/Limb';
 
 export type GameMode = 
   | 'combat-boss'      // Boss timer active, high HP target
@@ -16,17 +16,6 @@ export type GameMode =
   | 'quest-dialog'     // NPC dialog open
   | 'idle-lobby'       // No XP, no target, no interface
   | 'unknown';
-
-export interface TelemetrySnapshot {
-  buffs: Buff[];
-  debuffs: Buff[];
-  target: { hp: number; name: string } | null;
-  bossTimer: { minpart: number; secpart: number; time: number } | null;
-  xpDrops: string[];
-  chatLines: ChatLine[];
-  tooltip: { text: string; area?: { x: number; y: number; width: number; height: number } } | null;
-  dialog: { text: string[] | null; title: string } | null;
-}
 
 export function detectGameMode(telemetry: TelemetrySnapshot): GameMode {
   // 1. Clue Scroll Mode

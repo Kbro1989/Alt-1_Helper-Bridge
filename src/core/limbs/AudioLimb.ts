@@ -13,8 +13,6 @@ export class AudioLimb implements IAegisLimb {
   public readonly domain = 'AUDIO';
   public status: LimbStatus = LimbStatus.ACTIVE;
 
-  private volume: number = 70;
-
   constructor(initialVolume?: number) {
     if (initialVolume) this.setVolume(initialVolume);
   }
@@ -39,7 +37,6 @@ export class AudioLimb implements IAegisLimb {
   }
 
   public setVolume(vol: number) {
-    this.volume = vol;
     setNarratorVolume(vol);
   }
 

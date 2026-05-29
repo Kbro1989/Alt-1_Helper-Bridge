@@ -1,7 +1,7 @@
 /* 
   =========================================
   Aegis Alt1-AI - Core Design System
-  Vibrant Cyber-Amethyst & Neon Cyan Theme
+  Neon Cyan Theme
   =========================================
 */
 
@@ -11,14 +11,13 @@
   --bg-surface: 260, 20%, 11%;
   --bg-surface-elevated: 260, 18%, 16%;
   
-  --primary: 265, 90%, 68%;
-  --primary-glow: 265, 90%, 68%, 0.35;
-  --secondary: 185, 95%, 50%;
-  --secondary-glow: 185, 95%, 50%, 0.35;
+  --primary: 220, 100%, 50%;
+  --primary-glow: 220, 100%, 50%, 0.35;
+  --secondary: 190, 100%, 40%;
+  --secondary-glow: 190, 100%, 40%, 0.35;
   
-  --accent-purple: 275, 100%, 70%;
-  --accent-cyan: 185, 100%, 55%;
-  --accent-amber: 38, 95%, 58%;
+  --accent-cyan: 190, 100%, 70%;
+  --accent-amber: 40, 100%, 60%;
   --accent-emerald: 142, 80%, 52%;
   --accent-rose: 350, 85%, 58%;
   
@@ -27,7 +26,7 @@
   --text-dark: 260, 30%, 8%;
   
   --border-light: 260, 15%, 20%, 0.5;
-  --border-glow: 265, 80%, 65%, 0.25;
+  --border-glow: 190, 80%, 65%, 0.25;
 
   /* Typography */
   --font-sans: 'Inter', -apple-system, sans-serif;
@@ -71,12 +70,12 @@ body {
   background: hsla(var(--bg-deep), 0.5);
 }
 ::-webkit-scrollbar-thumb {
-  background: hsla(var(--primary), 0.3);
+  background: hsla(var(--secondary), 0.3);
   border-radius: 3px;
   border: 1px solid hsla(var(--bg-surface), 0.8);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsla(var(--primary), 0.6);
+  background: hsla(var(--secondary), 0.6);
 }
 
 /* Glassmorphism & Cards */
@@ -91,31 +90,22 @@ body {
 }
 
 .glass-panel:hover {
-  border-color: hsla(var(--primary), 0.35);
-  box-shadow: 0 8px 32px 0 rgba(var(--primary-glow), 0.15);
+  border-color: hsla(var(--secondary), 0.35);
+  box-shadow: 0 8px 32px 0 rgba(var(--secondary-glow), 0.15);
 }
 
 .glass-panel-elevated {
   background: hsla(var(--bg-surface-elevated), 0.85);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
-  border: 1px solid hsla(var(--primary), 0.25);
+  border: 1px solid hsla(var(--secondary), 0.25);
   border-radius: 20px;
   box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
 }
 
 /* Glowing Elements */
-.glow-text-purple {
-  text-shadow: 0 0 12px hsla(var(--primary), 0.6);
-}
-
 .glow-text-cyan {
   text-shadow: 0 0 12px hsla(var(--secondary), 0.6);
-}
-
-.neon-border-purple {
-  box-shadow: 0 0 15px hsla(var(--primary), 0.2);
-  border-color: hsla(var(--primary), 0.6) !important;
 }
 
 .neon-border-cyan {
@@ -125,7 +115,7 @@ body {
 
 /* Interactive Elements */
 .btn-primary {
-  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent-purple)));
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));
   color: white;
   border: none;
   padding: 10px 20px;
@@ -134,7 +124,7 @@ body {
   letter-spacing: 0.5px;
   border-radius: 8px;
   cursor: pointer;
-  box-shadow: 0 4px 15px hsla(var(--primary), 0.4);
+  box-shadow: 0 4px 15px hsla(var(--secondary), 0.4);
   transition: var(--transition-fast);
   display: inline-flex;
   align-items: center;
@@ -143,7 +133,7 @@ body {
 
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px hsla(var(--primary), 0.6);
+  box-shadow: 0 6px 20px hsla(var(--secondary), 0.6);
   filter: brightness(1.1);
 }
 
@@ -173,8 +163,8 @@ body {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: hsla(var(--primary), 0.15);
-  border-color: hsla(var(--primary), 0.5);
+  background: hsla(var(--secondary), 0.15);
+  border-color: hsla(var(--secondary), 0.5);
   transform: translateY(-1px);
 }
 
@@ -210,14 +200,13 @@ body {
   animation: float 6s ease-in-out infinite;
 }
 
-@keyframes pulse-neon-purple {
-  0% { box-shadow: 0 0 5px hsla(var(--primary), 0.2); }
-  50% { box-shadow: 0 0 20px hsla(var(--primary), 0.5); }
-  100% { box-shadow: 0 0 5px hsla(var(--primary), 0.2); }
+@keyframes pulse-neon-cyan {
+  0%, 100% { box-shadow: 0 0 10px hsla(var(--secondary), 0.5); }
+  50% { box-shadow: 0 0 20px hsla(var(--secondary), 0.8); }
 }
 
-.pulse-purple {
-  animation: pulse-neon-purple 3s infinite;
+.pulse-cyan {
+  animation: pulse-neon-cyan 3s infinite;
 }
 
 @keyframes scan-line {

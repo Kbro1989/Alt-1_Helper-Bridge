@@ -149,7 +149,7 @@
 
 .message-user {
   align-self: flex-end;
-  background: linear-gradient(135deg, hsla(var(--primary), 0.25), hsla(var(--accent-purple), 0.25));
+  background: linear-gradient(135deg, hsla(var(--primary), 0.25), hsla(var(--secondary), 0.25));
   border: 1px solid hsla(var(--primary), 0.5);
   border-bottom-right-radius: 4px;
 }

@@ -218,7 +218,7 @@ export default function XpMeter({ isCapturing, addTerminalLog }: XpMeterProps) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ padding: '16px', background: 'linear-gradient(135deg, hsla(var(--primary), 0.15), hsla(var(--accent-purple), 0.05))', border: '1px solid hsla(var(--primary), 0.25)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ padding: '16px', background: 'linear-gradient(135deg, hsla(var(--primary), 0.15), hsla(var(--secondary), 0.05))', border: '1px solid hsla(var(--primary), 0.25)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'white', display: 'flex', alignItems: 'center', gap: '6px' }}>
           <TrendingUp size={18} style={{ color: 'hsl(var(--primary))' }} />
           Dynamic Skill & XP Target Monitor

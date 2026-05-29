@@ -7,7 +7,7 @@
 import { LimbStatus } from '../limb/Limb';
 import type { IAegisLimb, LimbOutput, TelemetrySnapshot } from '../limb/Limb';
 import { analyzeFlip, type FlipAnalysis } from '../../utils/geEngine';
-import { fetchGeItemDetail, fetchGePriceGraph, type JagexItemDetail } from '../../utils/geApi';
+import { fetchGeItemDetail, fetchGePriceGraph } from '../../utils/geApi';
 
 export interface TrackedItem {
   itemId: number;
@@ -31,18 +31,18 @@ export class MarketLimb implements IAegisLimb {
     this.trackedItems = initialItems;
   }
 
-  public async pulse(telemetry: TelemetrySnapshot): Promise<LimbOutput | null> {
+  public async pulse(_telemetry: TelemetrySnapshot): Promise<LimbOutput | null> {
     // In a real implementation, this would poll live prices for tracked items
     // and return a pulse if a price threshold is crossed.
     return null;
   }
 
-  public async analyzeItem(itemId: number, itemName: string): Promise<LimbOutput> {
+  public async analyzeItem(itemId: number, _itemName: string): Promise<LimbOutput> {
     const detail = await fetchGeItemDetail(itemId);
     const graph = await fetchGePriceGraph(itemId);
 
     if (detail && graph) {
-      const analysis = analyzeFlip(detail.item, graph);
+      const analysis = analyzeFlip(detail, graph);
       return {
         payload: { analysis },
         confidence: 0.9,

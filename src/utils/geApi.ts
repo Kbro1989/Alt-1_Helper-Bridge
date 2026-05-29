@@ -22,11 +22,38 @@ async function proxiedFetch(targetUrl: string): Promise<unknown> {
     try {
       const proxyUrl = makeProxy(targetUrl);
       const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) continue;
-      const wrapper = await res.json() as { contents?: string };
-      // allorigins wraps in { contents }, corsproxy.io returns raw
-      const raw = wrapper.contents ?? (wrapper as unknown as string);
-      return typeof raw === 'string' ? JSON.parse(raw) : raw;
+      
+      // If the proxy itself failed
+      if (!res.ok) {
+        console.warn(`Proxy ${proxyUrl} returned status ${res.status}`);
+        continue;
+      }
+
+      const text = await res.text();
+      let payload: any;
+
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        // Not JSON - might be raw HTML from a passthrough proxy
+        console.warn(`Proxy returned non-JSON text: ${text.substring(0, 50)}...`);
+        continue;
+      }
+
+      // allorigins wraps in { contents }, others might return raw
+      const raw = payload.contents ?? payload;
+      
+      if (typeof raw === 'string') {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          // If the wrapped content is not JSON (e.g. 404 HTML page wrapped in JSON)
+          console.warn(`Wrapped content is not valid JSON: ${raw.substring(0, 50)}...`);
+          continue;
+        }
+      }
+      
+      return raw;
     } catch (e) {
       lastError = e;
     }

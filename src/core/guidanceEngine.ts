@@ -3,7 +3,8 @@
 // Contextual & State-Aware Guidance Generator
 // =============================================================================
 
-import { type TelemetrySnapshot, type GameMode } from './modeDetector';
+import { type GameMode } from './modeDetector';
+import { type TelemetrySnapshot } from './limb/Limb';
 import { mixColor } from '../utils/alt1Bridge';
 
 export interface GuidanceAction {

@@ -3,6 +3,20 @@
 // Local vision model bridge for Ollama integrations (llava / moondream)
 // =============================================================================
 
+export async function listOllamaModels(): Promise<string[]> {
+  try {
+    const response = await fetch('http://localhost:11434/api/tags');
+    if (!response.ok) {
+      throw new Error(`Ollama server returned status ${response.status}`);
+    }
+    const data = await response.json();
+    return data.models.map((m: { name: string }) => m.name);
+  } catch (error) {
+    console.error('Failed to list Ollama models:', error);
+    return [];
+  }
+}
+
 export async function askLocalOracle(
   imageBase64: string, 
   prompt: string,

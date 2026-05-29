@@ -1,3 +1,5 @@
+import { AbilityTracker } from './components/tabs/AbilityTracker';
+import { queryTieredAI } from './utils/aiTieredOrchestrator';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Play,
@@ -48,15 +50,19 @@ import {
   readTooltip
 } from './utils/alt1Bridge';
 import { installedApps } from './utils/installedApps';
-import { detectGameMode, type GameMode, type TelemetrySnapshot } from './core/modeDetector';
+import { detectGameMode, type GameMode } from './core/modeDetector';
+import { type TelemetrySnapshot } from './core/limb/Limb';
 import { generateGuidance } from './core/guidanceEngine';
 import { narrate, setNarratorVolume } from './core/voiceNarrator';
 import * as a1lib from 'alt1/base';
 import { resolveItemNameToId, fetchGeItemDetail, fetchGePriceGraph } from './utils/geApi';
 import { searchItemsByName, resolveItemId } from './utils/itemIndex';
 import { analyzeFlip, type FlipAnalysis } from './utils/geEngine';
-import { askLocalOracle } from './utils/ollamaBridge';
+import { askLocalOracle, listOllamaModels } from './utils/ollamaBridge';
 import { renderClickGuide, clearClickGuide, type ClickTarget } from './utils/clickGuide';
+import { Thalamus } from './core/Thalamus';
+import { LunaLimb } from './core/limbs/LunaLimb';
+import { OracleLimb } from './core/limbs/OracleLimb';
 
 // --- TS Interfaces & Window Extension ---
 interface Alt1SDK {
@@ -104,7 +110,7 @@ interface SessionMemory {
   geTrades: { itemName: string; price: number; quantity: number; action: 'buy' | 'sell'; timestamp: number }[];
 }
 
-interface GeItem {
+export interface GeItem {
   icon: string;
   icon_large: string;
   id: number;
@@ -119,7 +125,7 @@ interface GeItem {
   day180?: { trend: string; change: string };
 }
 
-interface HiscoreProfile {
+export interface HiscoreProfile {
   name: string;
   rank: string;
   totalskill: number;
@@ -152,21 +158,39 @@ interface GeminiPart {
 
 export default function App() {
   // --- States ---
-  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem('aegis_gemini_api_key') || 'AIzaSyBZUm25cLJKCbi9IdfaVJMzUR3HI5TCrk8');
+  const [apiKey, setApiKey] = useState<string>(() => {
+    return localStorage.getItem('aegis_gemini_api_key') || '';
+  });
   const [isApiKeyVisible, setIsApiKeyVisible] = useState(false);
-  const [currentTab, setCurrentTab] = useState<'oracle' | 'clue' | 'warden' | 'xp' | 'settings' | 'plugins' | 'ge-flip'>('oracle');
-
-  // AI Oracle Mode: 'gemini' | 'ollama'
+  const [currentTab, setCurrentTab] = useState<'oracle' | 'clue' | 'warden' | 'xp' | 'settings' | 'plugins' | 'ge-flip' | 'ability' | 'stopwatch'>('oracle');
   const [aiMode, setAiMode] = useState<'gemini' | 'ollama'>(() => {
     return (localStorage.getItem('aegis_ai_mode') as 'gemini' | 'ollama') || 'gemini';
   });
   const [ollamaModel, setOllamaModel] = useState<string>(() => {
     return localStorage.getItem('aegis_ollama_model') || 'moondream';
   });
+  const [availableOllamaModels, setAvailableOllamaModels] = useState<string[]>([]);
 
-  // Ambient Mode / Siri Game State
+  useEffect(() => {
+    if (aiMode === 'ollama') {
+      listOllamaModels().then(setAvailableOllamaModels);
+    }
+  }, [aiMode]);
+
+  // Global Telemetry State (Aggregated for Oracle)
+  // Exported via Thalamus for holistic synthesis
+  const activeTabsState = useRef({
+    xpMeter: { xpRate: 0, xpEarned: 0 },
+    geFlip: { lastPrice: 0 },
+    clueSolver: { activePuzzle: 'none' }
+  });
+
+  useEffect(() => {
+    Thalamus.getInstance().setTelemetryRef(activeTabsState);
+  }, []);
   const [currentMode, setCurrentMode] = useState<GameMode>('unknown');
   const [isAmbientLoopEnabled, setIsAmbientLoopEnabled] = useState(true);
+  const [isAiVisionEnabled, setIsAiVisionEnabled] = useState(true);
   const [sessionMemory, setSessionMemory] = useState<SessionMemory>(() => {
     const raw = localStorage.getItem('aegis_session_memory');
     if (raw) {
@@ -293,6 +317,8 @@ export default function App() {
   const streamRef = useRef<MediaStream | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const previousTelemetryRef = useRef<TelemetrySnapshot | null>(null);
+  const latestTelemetryRef = useRef<TelemetrySnapshot | null>(null);
+  const latestFrameRef = useRef<string | null>(null);
   const handleSendOracleMessageRef = useRef<((customPrompt?: string) => Promise<void>) | null>(null);
 
   const addTerminalLog = useCallback((tag: string, message: string) => {
@@ -445,7 +471,7 @@ export default function App() {
       screenActive: isCapturing,
       identifyAppUrl: (url: string) => {
         const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        setPogConsoleLogs(prev => [...prev, `[${timeStr}] API_SDK // Plugin identified config: '${url}'`]);
+        setAegisConsoleLogs((prev: string[]) => [...prev, `[${timeStr}] API_SDK // Plugin identified config: '${url}'`]);
         return true;
       },
       getPixel: (x: number, y: number) => {
@@ -486,22 +512,22 @@ export default function App() {
       },
       setOverlay: (overlay: unknown) => {
         const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        setPogConsoleLogs(prev => [...prev, `[${timeStr}] API_SDK // Dynamic vector overlay injected: ${typeof overlay}`]);
+        setAegisConsoleLogs((prev: string[]) => [...prev, `[${timeStr}] API_SDK // Dynamic vector overlay injected: ${typeof overlay}`]);
         return true;
       },
       clearOverlay: () => {
         const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        setPogConsoleLogs(prev => [...prev, `[${timeStr}] API_SDK // Overlay layers cleared.`]);
+        setAegisConsoleLogs((prev: string[]) => [...prev, `[${timeStr}] API_SDK // Overlay layers cleared.`]);
         return true;
       },
       setNotification: (title: string, text: string) => {
         const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        setPogConsoleLogs(prev => [...prev, `[${timeStr}] API_SDK // Notify: ${title} | ${text}`]);
+        setAegisConsoleLogs((prev: string[]) => [...prev, `[${timeStr}] API_SDK // Notify: ${title} | ${text}`]);
         return true;
       },
       playAudio: (url: string) => {
         const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        setPogConsoleLogs(prev => [...prev, `[${timeStr}] API_SDK // Play sound clip: '${url}'`]);
+        setAegisConsoleLogs((prev: string[]) => [...prev, `[${timeStr}] API_SDK // Play sound clip: '${url}'`]);
         playSynthAlarm('chime');
         return true;
       }
@@ -526,7 +552,7 @@ export default function App() {
       setIsCapturing(true);
       playSynthAlarm('chime');
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      setPogConsoleLogs(prev => [...prev, `[${timeStr}] ALT1_LINK // Native Alt1 screen capture bound. Version: ${alt1Status.version}`]);
+      setAegisConsoleLogs((prev: string[]) => [...prev, `[${timeStr}] ALT1_LINK // Native Alt1 screen capture bound. Version: ${alt1Status.version}`]);
       return;
     }
 
@@ -625,6 +651,13 @@ export default function App() {
           }
           ctx.drawImage(video, 0, 0, currentWidth, currentHeight);
         }
+      }
+
+      // Capture frame for Thalamus/Luna
+      try {
+        latestFrameRef.current = canvas.toDataURL('image/jpeg', 0.5); // Lower quality for training ingestion performance
+      } catch (e) {
+        // Silently fail if tainted
       }
 
       // Active pixel monitoring region (works with both Alt1 and browser capture)
@@ -750,16 +783,34 @@ export default function App() {
       const tooltip = readTooltip();
       const dialog = readDialog();
 
+      // Ensure target coordinates are extracted if they exist
+      const targetX = (target as any)?.x || 0;
+      const targetY = (target as any)?.y || 0;
+
       const telemetry: TelemetrySnapshot = {
+        timestamp: Date.now(),
+        hp: 100, // Placeholder for player health reader
+        maxHp: 100,
         buffs,
         debuffs,
-        target,
+        target: target ? {
+          ...target,
+          position: { x: targetX, y: targetY, frame: 'screen', confidence: 0.9 }
+        } : null,
         bossTimer,
         xpDrops,
         chatLines,
         tooltip: tooltip ? { text: tooltip.text, area: tooltip.area } : null,
-        dialog: dialog ? { text: dialog.text, title: dialog.title } : null
+        dialog: dialog ? { text: dialog.text, title: dialog.title } : null,
+        spatialContext: {
+          viewport: { width: canvasRef.current?.width || 0, height: canvasRef.current?.height || 0 },
+          cameraAngle: 0 // Placeholder for camera inference
+        }
       };
+      
+      latestTelemetryRef.current = telemetry;
+      
+      latestTelemetryRef.current = telemetry;
 
       // 2. Perform intelligent state/mode detection
       const mode = detectGameMode(telemetry);
@@ -1474,8 +1525,53 @@ export default function App() {
     playSynthAlarm('chime');
   };
 
+  const [isHeartbeatActive, setIsHeartbeatActive] = useState(false);
+
+  // --- Thalamus Heartbeat Controller ---
+  useEffect(() => {
+    if (isCapturing && !isHeartbeatActive) {
+      const thalamus = Thalamus.getInstance();
+      thalamus.startHeartbeat(
+        () => latestTelemetryRef.current!,
+        () => latestFrameRef.current
+      );
+      thalamus.getLimb<LunaLimb>('LUNA').setCollecting(true);
+      setIsHeartbeatActive(true);
+      addTerminalLog('THALAMUS', 'Central Relay Heartbeat [600ms] ACTIVATED.');
+      addTerminalLog('LUNA', 'Luna Training Collector: INGESTION ACTIVE.');
+    } else if (!isCapturing && isHeartbeatActive) {
+      const thalamus = Thalamus.getInstance();
+      thalamus.getLimb<LunaLimb>('LUNA').setCollecting(false);
+      thalamus.stopHeartbeat();
+      setIsHeartbeatActive(false);
+      addTerminalLog('THALAMUS', 'Central Relay Heartbeat DEACTIVATED.');
+    }
+  }, [isCapturing, isHeartbeatActive, addTerminalLog]);
+
   // --- Gemini API & Mock Simulator Execution ---
-  const getCanvasSnapshotBase64 = (): string | null => {
+  // New state to hold the stream for shared display
+  const [displayStream, setDisplayStream] = useState<MediaStream | null>(null);
+
+  const getCanvasSnapshotBase64 = async (): Promise<string | null> => {
+    // 1. Prioritize browser-native Screen Capture API for shared windows
+    if (displayStream && displayStream.active) {
+        const video = document.createElement('video');
+        video.srcObject = displayStream;
+        await video.play();
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d')?.drawImage(video, 0, 0);
+        
+        // Stop the video track to allow re-capture if needed
+        video.pause();
+        video.srcObject = null;
+        
+        return canvas.toDataURL('image/jpeg', 0.8);
+    }
+
+    // 2. Fallback to Alt1 game capture
     if (a1lib.hasAlt1) {
       const rsW = window.alt1.rsWidth;
       const rsH = window.alt1.rsHeight;
@@ -1492,12 +1588,24 @@ export default function App() {
       return null;
     }
 
+    // 3. Fallback to existing canvasRef
     if (!canvasRef.current) return null;
     try {
       return canvasRef.current.toDataURL('image/jpeg', 0.8);
     } catch (e) {
       console.warn('Canvas export tainted (CORS/Secure context):', e);
       return null;
+    }
+  };
+
+  // Helper to start screen sharing
+  const startScreenShare = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      setDisplayStream(stream);
+      addTerminalLog('SYSTEM', 'Screen sharing started. AI analysis now focused on shared content.');
+    } catch (err) {
+      addTerminalLog('ERROR', 'Screen sharing denied.');
     }
   };
 
@@ -1569,7 +1677,7 @@ Based on this telemetry and the screen pixels, determine:
     if (!promptToSend.trim()) return;
 
     // Append User Message
-    const snapshot = isCapturing ? getCanvasSnapshotBase64() : undefined;
+    const snapshot = isCapturing ? await getCanvasSnapshotBase64() : undefined;
     const userMsgId = 'msg-' + Date.now();
     const newUserMessage: Message = {
       id: userMsgId,
@@ -1589,9 +1697,10 @@ Based on this telemetry and the screen pixels, determine:
 
       if (aiMode === 'ollama') {
         const liveContext = getLiveAlt1Context();
-        const base64Snapshot = snapshot || getCanvasSnapshotBase64() || "";
+        const base64Snapshot = snapshot || await getCanvasSnapshotBase64() || "";
         const promptText = `${promptToSend}\n\n${liveContext}`;
-        responseText = await askLocalOracle(base64Snapshot, promptText, ollamaModel);
+        const rawBase64 = base64Snapshot.replace(/^data:image\/[a-z]+;base64,/, "");
+        responseText = await askLocalOracle(rawBase64, promptText, ollamaModel);
       } else if (apiKey) {
         // --- REAL LIVE GEMINI API REQUEST ---
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
@@ -1704,90 +1813,16 @@ ${getToolManifest()}`
           timestamp: new Date()
         }]);
       } else {
-        // --- HIGH FIDELITY SIMULATION MODE (No API Key) ---
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate think time
-
-        let mockResponseText = '';
-        const lowercasePrompt = promptToSend.toLowerCase();
-
-        if (lowercasePrompt.includes('clue') || lowercasePrompt.includes('solve')) {
-          mockResponseText = `### 🛡️ Aegis Clue Solver Oracle [SIMULATOR]
-I have inspected your captured game client snapshot.
-
-**Detected:** Level 4 (Elite) Treasure Scroll
-**Clue Text:** *"Speak to the bartender in the Blue Moon Inn."*
-**Analysis:** Standard cryptograph clue.
-
-**Direct Actions:**
-1. Teleport to **Varrock Square** (Lodestone or Teleport spell).
-2. Head south to the **Blue Moon Inn** (located near the southern gate entrance).
-3. Speak with the bartender named **Harlow**.
-4. **Important Safeguard:** Ensure you equip a **Leather Body** and **Bronze Platelegs** prior to starting the dialog to prevent wizard traps!
-
-**Overlay status:** Coordinates matched! Teleport indicator highlighted in yellow.
-[OVERLAY_PING: x=960, y=540, w=100, h=100, label="Target: Harlow"]`;
-        } else if (lowercasePrompt.includes('inspect') || lowercasePrompt.includes('screen') || lowercasePrompt.includes('analyze')) {
-          mockResponseText = `### 🛡️ Tactical HUD Inspection [SIMULATOR]
-I have performed a pixel analysis of your current game layout.
-
-1. **Combat Stance:** Your Slayer warden signals you are fighting **Abyssal Demons** at the Slayer Tower.
-2. **Buff Status:** 
-   - **Overload Potion:** Active (approx. 2m 40s remaining).
-   - **Prayer Renewal:** EXPIRED! Reactivate immediately to prevent prayer drain.
-3. **Inventory Audit:** 24 inventory slots open. 3 Spring cleaner charges remaining.
-4. **Tactical recommendation:** Move 2 squares east to aggregate maximum demon aggro, and utilize *Scythe* action bar rotation for optimal AoE DPS.`;
-        } else if (lowercasePrompt.includes('boss') || lowercasePrompt.includes('mechanic')) {
-          mockResponseText = `### 🛡️ Sovereign Boss Oracle [SIMULATOR]
-Active game client scanning for spatial entities...
-
-**Boss Identified:** Arch-Glacor (3-Mechanics active: Flurry, Pillars, Cannon).
-**Imminent Danger Threat:** *Frost Cannon*
-**Tactical Counters:**
-- As the Glacor gathers glowing ice beams, activate **Reflect** or **Devotion** prayer.
-- Swap quick-prayer to **Deflect Magic** to mitigate the triple magic projectile blast.
-- Keep weapon ready to execute *Resonance* if your Shield is equipped for a massive full-health restore!`;
-        } else {
-          mockResponseText = `### 🛡️ Aegis AI Oracle [SIMULATOR]
-Your query: *"${promptToSend}"*
-
-I am running in **Simulation Mode** because no Gemini API key is configured. To unlock real-time live vision reasoning directly connected to Google's official Gemini 2.5 Flash model:
-1. Navigate to the **Settings** tab.
-2. Enter your secure Google Gemini API key.
-3. The Oracle will then read the actual pixels of your screen and solve clues, inventory logs, or boss maneuvers dynamically!
-
-**Advice:** You can ask about "Solve Clue Scroll", "Inspect Screen", or "Boss Strategy" to view high-fidelity context simulation!`;
-        }
-
-        // --- Augmented Reality Ping Interceptor (Simulator) ---
-        let cleanedMockResponseText = mockResponseText;
-        const pingRegexMock = /\[OVERLAY_PING:\s*x=(\d+),\s*y=(\d+),\s*w=(\d+),\s*h=(\d+),\s*label="([^"]+)"\]/g;
-        let matchMock;
-        let mockPingsExecuted = 0;
-
-        while ((matchMock = pingRegexMock.exec(mockResponseText)) !== null) {
-          const x = parseInt(matchMock[1], 10);
-          const y = parseInt(matchMock[2], 10);
-          const w = parseInt(matchMock[3], 10);
-          const h = parseInt(matchMock[4], 10);
-          const label = matchMock[5];
-
-          if (a1lib.hasAlt1) {
-            const groupName = `AegisOraclePing_${mockPingsExecuted}`;
-            setNativeOverlayGroup(groupName);
-            clearNativeOverlayGroup(groupName);
-            const accentColor = mixColor(170, 59, 255);
-            drawNativeRect(x, y, w, h, accentColor, 8000, 3);
-            drawNativeText(`✨ ${label}`, x, y - 5, accentColor, 14, 8000);
-          }
-
-          cleanedMockResponseText = cleanedMockResponseText.replace(matchMock[0], `\n> 🧿 **Oracle AR Ping Executed:** [${label} at ${x},${y}]\n`);
-          mockPingsExecuted++;
-        }
+        const liveContext = getLiveAlt1Context();
+        const base64Snapshot = snapshot || await getCanvasSnapshotBase64() || "";
+        const rawBase64 = base64Snapshot.replace(/^data:image\/[a-z]+;base64,/, "");
+        
+        responseText = await queryTieredAI(promptToSend, rawBase64, liveContext);
 
         setChatMessages(prev => [...prev, {
           id: 'oracle-' + Date.now(),
           sender: 'oracle',
-          text: cleanedMockResponseText,
+          text: responseText,
           timestamp: new Date()
         }]);
       }
@@ -1925,6 +1960,39 @@ I am running in **Simulation Mode** because no Gemini API key is configured. To 
     playSynthAlarm('chime');
   };
 
+  // New: Automatic Vision Analysis Trigger
+  const runVisionClueAnalysis = async () => {
+    setIsOracleLoading(true);
+    addTerminalLog('ORACLE', 'Initiating precision screen analysis for active clue...');
+
+    try {
+      const snapshot = await getCanvasSnapshotBase64();
+      if (!snapshot) throw new Error('Could not capture game screen.');
+
+      // Utilize the new swarm orchestrator (OracleLimb)
+      const thalamus = Thalamus.getInstance();
+      const oracle = thalamus.getLimb<OracleLimb>('ORACLE_CORTEX');
+      
+      const response = await oracle.query(
+        "Analyze this screenshot and identify the Treasure Trail clue. Return puzzle type (slider, knot, riddle) and the solution/next steps.",
+        latestTelemetryRef.current || { timestamp: Date.now() } as any,
+        snapshot
+      );
+
+      setChatMessages(prev => [...prev, {
+        id: 'oracle-' + Date.now(),
+        sender: 'oracle',
+        text: (response.payload as { text?: string }).text || 'Analysis complete, but no specific solution found.',
+        timestamp: new Date()
+      }]);
+
+    } catch (err) {
+      addTerminalLog('ERROR', `Vision clue analysis failed: ${err}`);
+    } finally {
+      setIsOracleLoading(false);
+    }
+  };
+
   const runKnotAutoSolve = () => {
     if (isKnotSolving) return;
     setIsKnotSolving(true);
@@ -1969,7 +2037,7 @@ I am running in **Simulation Mode** because no Gemini API key is configured. To 
       <header className="premium-header">
         <div className="header-left">
           <h1 className="premium-title">
-            <Shield className="glow-text-purple" style={{ color: 'hsl(var(--primary))' }} />
+            <Shield className="glow-text-cyan" style={{ color: 'hsl(var(--primary))' }} />
             <span>AEGIS <span style={{ color: 'hsl(var(--secondary))' }}>ALT1-AI</span></span>
           </h1>
           <span className="subtitle-mono">Autonomous HUD Intelligence & Overlay Substrate</span>
@@ -2158,6 +2226,10 @@ I am running in **Simulation Mode** because no Gemini API key is configured. To 
               <BarChart2 size={16} style={{ color: 'hsl(var(--accent-emerald))' }} />
               GE Flip
             </button>
+            <button className={`tab-button ${currentTab === 'ability' ? 'active' : ''}`} onClick={() => setCurrentTab('ability')}>
+              <Zap size={16} />
+              Ability Tracker
+            </button>
             <button className={`tab-button ${currentTab === 'plugins' ? 'active' : ''}`} onClick={() => setCurrentTab('plugins')}>
               <Layers size={16} />
               Installed Plugins
@@ -2174,9 +2246,20 @@ I am running in **Simulation Mode** because no Gemini API key is configured. To 
             {currentTab === 'oracle' && (
               <div className="chat-container">
                 <div className="chat-messages">
-                  {chatMessages.map(msg => (
-                    <div key={msg.id} className={`message-bubble ${msg.sender === 'user' ? 'message-user' : 'message-oracle'}`}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {chatMessages.length === 0 && (
+                      <div style={{ padding: '20px', textAlign: 'center', color: 'hsl(var(--text-muted))', fontSize: '0.8rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+                        <h4 style={{ color: 'hsl(var(--primary))' }}>Aegis Oracle Ready</h4>
+                        <p>No active case detected. View the game screen to initiate AI analysis.</p>
+                        <ul style={{ textAlign: 'left', marginTop: '10px' }}>
+                          <li>AI Oracle: Ask for gameplay advice.</li>
+                          <li>Clue Solver: Solve RuneScape clues.</li>
+                          <li>GE Tracker: Monitor prices.</li>
+                        </ul>
+                      </div>
+                  )}
+                  {chatMessages.map((msg) => (
+                  <div key={msg.id} className={`message-bubble ${msg.sender === 'user' ? 'message-user' : 'message-oracle'}`}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         {/* If text has markdown titles, style them nicely */}
                         <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.85rem' }}>
                           {msg.text.startsWith('###') ? (
@@ -2212,22 +2295,12 @@ I am running in **Simulation Mode** because no Gemini API key is configured. To 
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* API WARNING CHIP */}
-                {!apiKey && (
-                  <div className="setup-warning-panel" style={{ marginBottom: '12px' }}>
-                    <AlertTriangle size={16} style={{ color: 'hsl(var(--accent-amber))', flexShrink: 0, marginTop: '2px' }} />
-                    <div>
-                      <strong>Simulation Mode Active:</strong> Add a <strong>Google Gemini API Key</strong> in the HUD Config tab to connect to the active Vision model. Using high-fidelity mock data for now.
-                    </div>
-                  </div>
-                )}
-
                 {/* Chat Input row */}
                 <div className="chat-input-area">
                   {/* Preset quick actions chips */}
                   <div className="chat-quick-actions">
-                    <button className="quick-action-chip" onClick={() => handleSendOracleMessage('Solve Clue Scroll')}>
-                      🗺️ Solve Clue Scroll
+                    <button className="quick-action-chip" onClick={runVisionClueAnalysis}>
+                      🔍 Analyze Screen for Clue
                     </button>
                     <button className="quick-action-chip" onClick={() => handleSendOracleMessage('Inspect Screen & Advice')}>
                       🔍 Inspect Game Screen
@@ -2984,6 +3057,10 @@ I am running in **Simulation Mode** because no Gemini API key is configured. To 
               </div>
             )}
 
+            {currentTab === 'ability' && (
+              <AbilityTracker getCanvasSnapshotBase64={getCanvasSnapshotBase64} />
+            )}
+
             {/* 5. TABS CONTENT: INSTALLED PLUGINS */}
             {currentTab === 'plugins' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -3523,6 +3600,9 @@ I am running in **Simulation Mode** because no Gemini API key is configured. To 
                     <Cpu size={16} />
                     AI Engine Selection
                   </h3>
+                  <button onClick={startScreenShare} className="btn-primary" style={{ width: '100%', fontSize: '0.75rem', justifyContent: 'center' }}>
+                     Share Screen for AI
+                  </button>
                   <p style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))' }}>
                     Choose the intelligence substrate to power the Aegis Oracle. Select <strong>Google Gemini</strong> for cloud-scale reasoning, or <strong>Local Ollama Vision</strong> for completely private offline operations.
                   </p>
@@ -3563,13 +3643,17 @@ I am running in **Simulation Mode** because no Gemini API key is configured. To 
                           }}
                           style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '8px', fontSize: '0.75rem', outline: 'none' }}
                         >
-                          <option value="moondream">Moondream (Fast, 1.8B)</option>
-                          <option value="llava">Llava (General, 7B)</option>
-                          <option value="llava-phi3">Llava-Phi3 (Balanced, 3.8B)</option>
+                          {availableOllamaModels.length > 0 ? (
+                            availableOllamaModels.map(model => (
+                              <option key={model} value={model}>{model}</option>
+                            ))
+                          ) : (
+                            <option value="">No models found (ensure Ollama is running)</option>
+                          )}
                         </select>
                       </div>
                       <span style={{ fontSize: '9px', color: 'hsl(var(--text-muted))' }}>
-                        Ensure Ollama is running locally at <code>http://localhost:11434</code> with your selected model pulled.
+                        Ensure Ollama is running locally at <code>http://localhost:11434</code>. Models fetched: {availableOllamaModels.length}.
                       </span>
                     </div>
                   )}
@@ -3724,7 +3808,8 @@ I am running in **Simulation Mode** because no Gemini API key is configured. To 
                     <label className="toggle-switch">
                       <input
                         type="checkbox"
-                        defaultChecked
+                        checked={isAiVisionEnabled}
+                        onChange={(e) => setIsAiVisionEnabled(e.target.checked)}
                         title="Enable Live Screen Detection"
                         aria-label="Enable Live Screen Detection"
                       />

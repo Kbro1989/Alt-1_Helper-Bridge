@@ -19,10 +19,34 @@ async function proxiedFetch(targetUrl: string): Promise<unknown> {
     try {
       const proxyUrl = makeProxy(targetUrl);
       const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) continue;
-      const wrapper = await res.json();
-      const raw = wrapper.contents ?? wrapper;
-      return typeof raw === 'string' ? JSON.parse(raw) : raw;
+      
+      if (!res.ok) {
+        console.warn(`Wiki Proxy ${proxyUrl} returned status ${res.status}`);
+        continue;
+      }
+
+      const text = await res.text();
+      let payload: any;
+
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        console.warn(`Wiki Proxy returned non-JSON text: ${text.substring(0, 50)}...`);
+        continue;
+      }
+
+      const raw = payload.contents ?? payload;
+      
+      if (typeof raw === 'string') {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          console.warn(`Wiki wrapped content is not valid JSON: ${raw.substring(0, 50)}...`);
+          continue;
+        }
+      }
+      
+      return raw;
     } catch (e) {
       lastError = e;
     }

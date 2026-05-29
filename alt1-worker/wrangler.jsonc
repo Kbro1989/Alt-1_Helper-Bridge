@@ -10,5 +10,11 @@
   },
   "observability": {
     "enabled": true
-  }
+  },
+  "kv_namespaces": [
+    {
+      "binding": "ITEMS_LIST",
+      "id": "86eec6acf2404e0fbe088cace94294bd"
+    }
+  ]
 }

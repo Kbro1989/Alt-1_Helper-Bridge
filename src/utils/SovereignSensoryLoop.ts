@@ -12,12 +12,16 @@ export type SensoryFeedback = {
 
 export class SovereignSensoryLoop {
     private isRunning = false;
-    private listeners: Array<(feedback: SensoryFeedback) => void> = [];
+    private captureCanvas: () => ImageData | null;
+    private onFeedback: (feedback: SensoryFeedback) => void;
 
     constructor(
-        private readonly captureCanvas: () => ImageData | null,
-        private readonly onFeedback: (feedback: SensoryFeedback) => void
-    ) {}
+        captureCanvas: () => ImageData | null,
+        onFeedback: (feedback: SensoryFeedback) => void
+    ) {
+        this.captureCanvas = captureCanvas;
+        this.onFeedback = onFeedback;
+    }
 
     public start(fps: number = 5) {
         if (this.isRunning) return;
